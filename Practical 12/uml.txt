@@ -1,0 +1,31 @@
+             PERSON
+       -------------------
+       # name
+       -------------------
+       + display()
+              |
+              | Inheritance
+              |
+            STUDENT
+       -------------------
+       - id
+       - course
+       - marks
+       -------------------
+       + getId()
+       + getGrade()
+       + display()
+              |
+              |
+              | Managed by
+              |
+        STUDENT PORTAL
+       -------------------
+       - vector<Student>
+       - filename
+       -------------------
+       + addStudent()
+       + displayStudents()
+       + searchStudent()
+       + saveStudents()
+       + loadStudents()

@@ -1,192 +1,325 @@
 
 
 #include <iostream>
+#include <vector>
 #include <fstream>
+#include <sstream>
 #include <string>
+#include <stdexcept>
 #include <limits>
+
 using namespace std;
 
-class StudentPortal
-{
-private:
-    string username = "admin";
-    string password = "1234";
+// Custom exception
+class InvalidStudentData : public runtime_error {
+public:
+    InvalidStudentData(const string& message)
+        : runtime_error(message) {}
+};
+
+class StudentNotFound : public runtime_error {
+public:
+    StudentNotFound(const string& message)
+        : runtime_error(message) {}
+};
+
+// Base class
+class Person {
+protected:
+    string name;
 
 public:
-    bool login()
-    {
-        string u, p;
+    Person(const string& n) {
+        if (n.empty() || n.find('|') != string::npos)
+            throw InvalidStudentData("Invalid name.");
 
-        cout << "\n===== STUDENT PORTAL LOGIN =====\n";
-        cout << "Username: ";
-        cin >> u;
-
-        cout << "Password: ";
-        cin >> p;
-
-        if (u == username && p == password)
-        {
-            cout << "\nLogin Successful!\n";
-            return true;
-        }
-
-        cout << "\nInvalid Username or Password!\n";
-        return false;
+        name = n;
     }
 
-    void addStudent()
-    {
-        int roll;
-        string name;
-        float marks;
+    virtual void display() const = 0;
 
-        cout << "\nEnter Roll Number: ";
-        cin >> roll;
+    virtual ~Person() {}
+};
 
-        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+// Derived class
+class Student : public Person {
+private:
+    int id;
+    string course;
+    double marks;
 
-        cout << "Enter Student Name: ";
-        getline(cin, name);
+public:
+    Student(int i, const string& n,
+            const string& c, double m)
+        : Person(n) {
 
-        cout << "Enter Marks: ";
-        cin >> marks;
+        if (i <= 0)
+            throw InvalidStudentData("ID must be positive.");
 
-        if (roll <= 0 || marks < 0 || marks > 100)
-        {
-            cout << "Invalid student details!\n";
-            return;
-        }
+        if (c.empty() || c.find('|') != string::npos)
+            throw InvalidStudentData("Invalid course.");
 
-        ofstream file("students.txt", ios::app);
+        if (m < 0 || m > 100)
+            throw InvalidStudentData("Marks must be between 0 and 100.");
 
-        if (!file)
-        {
-            cout << "Unable to open file!\n";
-            return;
-        }
-
-        file << roll << "|" << name << "|" << marks << "\n";
-        file.close();
-
-        cout << "Student Added Successfully!\n";
+        id = i;
+        course = c;
+        marks = m;
     }
 
-    void displayStudents()
-    {
-        ifstream file("students.txt");
-        string line;
-
-        cout << "\n===== STUDENT RECORDS =====\n";
-
-        if (!file)
-        {
-            cout << "No records found.\n";
-            return;
-        }
-
-        while (getline(file, line))
-        {
-            cout << line << endl;
-        }
-
-        file.close();
+    int getId() const {
+        return id;
     }
 
-    void searchStudent()
-    {
-        int searchRoll;
-        int roll;
-        string name;
-        float marks;
-        bool found = false;
-
-        cout << "\nEnter Roll Number: ";
-        cin >> searchRoll;
-
-        ifstream file("students.txt");
-
-        if (!file)
-        {
-            cout << "No records found.\n";
-            return;
-        }
-
-        while (file >> roll)
-        {
-            file.ignore();
-            getline(file, name, '|');
-            file >> marks;
-            file.ignore(numeric_limits<streamsize>::max(), '\n');
-
-            if (roll == searchRoll)
-            {
-                cout << "\nStudent Found!\n";
-                cout << "Roll Number: " << roll << endl;
-                cout << "Name: " << name << endl;
-                cout << "Marks: " << marks << endl;
-
-                found = true;
-                break;
-            }
-        }
-
-        file.close();
-
-        if (!found)
-            cout << "Student Not Found!\n";
+    string getName() const {
+        return name;
     }
 
-    void menu()
-    {
-        int choice;
+    string getCourse() const {
+        return course;
+    }
 
-        do
-        {
-            cout << "\n===== STUDENT DASHBOARD =====\n";
-            cout << "1. Add Student\n";
-            cout << "2. Display Students\n";
-            cout << "3. Search Student\n";
-            cout << "4. Logout\n";
+    double getMarks() const {
+        return marks;
+    }
 
-            cout << "Enter Choice: ";
-            cin >> choice;
+    string getGrade() const {
+        if (marks >= 75)
+            return "Distinction";
+        else if (marks >= 60)
+            return "First Class";
+        else if (marks >= 40)
+            return "Pass";
+        else
+            return "Fail";
+    }
 
-            switch (choice)
-            {
-            case 1:
-                addStudent();
-                break;
-
-            case 2:
-                displayStudents();
-                break;
-
-            case 3:
-                searchStudent();
-                break;
-
-            case 4:
-                cout << "Logged Out Successfully!\n";
-                break;
-
-            default:
-                cout << "Invalid Choice!\n";
-            }
-
-        } while (choice != 4);
+    void display() const override {
+        cout << "\nStudent ID : " << id;
+        cout << "\nName       : " << name;
+        cout << "\nCourse     : " << course;
+        cout << "\nMarks      : " << marks;
+        cout << "\nGrade      : " << getGrade();
+        cout << "\n--------------------------\n";
     }
 };
 
-int main()
-{
-    StudentPortal portal;
+// Student Portal class
+class StudentPortal {
+private:
+    vector<Student> students;
+    const string filename = "Practical 12/students.txt";
 
-    if (portal.login())
-    {
-        portal.menu();
+public:
+
+    // Load records from file
+    void loadStudents() {
+        ifstream file(filename);
+
+        if (!file) {
+            return;
+        }
+
+        string line;
+
+        while (getline(file, line)) {
+            stringstream ss(line);
+
+            string idText, name, course, marksText;
+
+            if (!getline(ss, idText, '|') ||
+                !getline(ss, name, '|') ||
+                !getline(ss, course, '|') ||
+                !getline(ss, marksText)) {
+                throw runtime_error("Invalid record in file.");
+            }
+
+            try {
+                int id = stoi(idText);
+                double marks = stod(marksText);
+
+                bool duplicate = false;
+
+                for (const Student& s : students) {
+                    if (s.getId() == id) {
+                        duplicate = true;
+                        break;
+                    }
+                }
+
+                if (!duplicate) {
+                    students.emplace_back(
+                        id, name, course, marks
+                    );
+                }
+
+            } catch (const exception&) {
+                throw runtime_error("Invalid student data in file.");
+            }
+        }
+
+        file.close();
     }
 
-    cout << "\nThank You for Using Student Portal!\n";
+    // Save records to file
+    void saveStudents() const {
+        ofstream file(filename);
+
+        if (!file)
+            throw runtime_error("Unable to save records.");
+
+        for (const Student& s : students) {
+            file << s.getId() << "|"
+                 << s.getName() << "|"
+                 << s.getCourse() << "|"
+                 << s.getMarks() << "\n";
+        }
+
+        file.close();
+    }
+
+    // Add a student
+    void addStudent() {
+        try {
+            int id;
+            double marks;
+            string name, course;
+
+            cout << "\nEnter Student ID: ";
+            if (!(cin >> id))
+                throw InvalidStudentData("Invalid ID.");
+
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+            for (const Student& s : students) {
+                if (s.getId() == id)
+                    throw InvalidStudentData("ID already exists.");
+            }
+
+            cout << "Enter Student Name: ";
+            getline(cin, name);
+
+            cout << "Enter Course: ";
+            getline(cin, course);
+
+            cout << "Enter Marks (0-100): ";
+            if (!(cin >> marks))
+                throw InvalidStudentData("Invalid marks.");
+
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+            students.emplace_back(id, name, course, marks);
+
+            saveStudents();
+
+            cout << "\nStudent added successfully!\n";
+        }
+        catch (const InvalidStudentData& e) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "\nError: " << e.what() << "\n";
+        }
+        catch (const exception& e) {
+            cout << "\nError: " << e.what() << "\n";
+        }
+    }
+
+    // Display all students
+    void displayStudents() const {
+        if (students.empty()) {
+            cout << "\nNo student records available.\n";
+            return;
+        }
+
+        cout << "\n===== STUDENT RECORDS =====\n";
+
+        for (const Student& s : students) {
+            s.display();
+        }
+    }
+
+    // Search student by ID
+    void searchStudent() const {
+        int id;
+
+        cout << "\nEnter Student ID: ";
+
+        if (!(cin >> id)) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "\nInvalid ID.\n";
+            return;
+        }
+
+        for (const Student& s : students) {
+            if (s.getId() == id) {
+                cout << "\nStudent Found!\n";
+                s.display();
+                return;
+            }
+        }
+
+        try {
+            throw StudentNotFound("Student record not found.");
+        }
+        catch (const StudentNotFound& e) {
+            cout << "\nError: " << e.what() << "\n";
+        }
+    }
+};
+
+// Main function
+int main() {
+    StudentPortal portal;
+
+    try {
+        portal.loadStudents();
+        cout << "Student records loaded successfully.\n";
+    }
+    catch (const exception& e) {
+        cout << "File Error: " << e.what() << "\n";
+        return 1;
+    }
+
+    int choice;
+
+    do {
+        cout << "\n========== STUDENT PORTAL ==========\n";
+        cout << "1. Add Student\n";
+        cout << "2. Display All Students\n";
+        cout << "3. Search Student\n";
+        cout << "4. Exit\n";
+        cout << "Enter your choice: ";
+
+        if (!(cin >> choice)) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "\nPlease enter a valid number.\n";
+            continue;
+        }
+
+        switch (choice) {
+            case 1:
+                portal.addStudent();
+                break;
+
+            case 2:
+                portal.displayStudents();
+                break;
+
+            case 3:
+                portal.searchStudent();
+                break;
+
+            case 4:
+                cout << "\nThank you for using Student Portal!\n";
+                break;
+
+            default:
+                cout << "\nInvalid choice. Try again.\n";
+        }
+
+    } while (choice != 4);
 
     return 0;
 }
